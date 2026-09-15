@@ -5,6 +5,7 @@ import com.cadi.artedental.patient.odontogram.model.PatientTooth;
 import com.cadi.artedental.patient.odontogram.model.ToothStatus;
 import com.cadi.artedental.patient.odontogram.repository.PatientToothRepository;
 import com.cadi.artedental.patient.repository.PatientRepository;
+import com.cadi.artedental.treatment.dto.request.CreatePlanTreatmentRequest;
 import com.cadi.artedental.treatment.dto.request.CreateTreatmentRequest;
 import com.cadi.artedental.treatment.dto.request.UpdateTreatmentRequest;
 import com.cadi.artedental.treatment.dto.response.PlanTreatmentResponse;
@@ -12,6 +13,7 @@ import com.cadi.artedental.treatment.dto.response.TreatmentResponse;
 import com.cadi.artedental.treatment.model.Treatment;
 import com.cadi.artedental.treatment.model.TreatmentPlan;
 import com.cadi.artedental.treatment.model.TreatmentStatus;
+import com.cadi.artedental.treatment.repository.PlanTreatmentRepository;
 import com.cadi.artedental.treatment.repository.TreatmentRepository;
 
 import org.springframework.stereotype.Service;
@@ -24,14 +26,14 @@ import java.util.UUID;
 
 @Service
 @Transactional
-public class TreatmentService {
+public class PlanTreatmentService {
 
-        private final TreatmentRepository treatmentRepository;
+        private final PlanTreatmentRepository treatmentRepository;
         private final PatientRepository patientRepository;
         private final PatientToothRepository patientToothRepository;
 
-        public TreatmentService(
-                        TreatmentRepository treatmentRepository,
+        public PlanTreatmentService(
+                        PlanTreatmentRepository treatmentRepository,
                         PatientRepository patientRepository,
                         PatientToothRepository patientToothRepository) {
                 this.treatmentRepository = treatmentRepository;
@@ -44,14 +46,14 @@ public class TreatmentService {
         // =========================================================
 
         @Transactional(readOnly = true)
-        public List<TreatmentResponse> findByPatientId(
+        public List<PlanTreatmentResponse> findByPatientId(
                         String patientId) {
                 requirePatient(patientId);
 
                 return treatmentRepository
-                                .findByPatient_IdOrderByStartDateDesc(patientId)
+                                .findByPatient_IdOrderByCreatedAtDesc(patientId)
                                 .stream()
-                                .map(TreatmentResponse::fromEntity)
+                                .map(PlanTreatmentResponse::fromEntity)
                                 .toList();
         }
 
@@ -60,14 +62,14 @@ public class TreatmentService {
         // =========================================================
 
         @Transactional(readOnly = true)
-        public TreatmentResponse findById(
+        public PlanTreatmentResponse findById(
                         String patientId,
                         String treatmentId) {
-                Treatment treatment = requireTreatment(
+                TreatmentPlan treatment = requireTreatment(
                                 patientId,
                                 treatmentId);
 
-                return TreatmentResponse.fromEntity(
+                return PlanTreatmentResponse.fromEntity(
                                 treatment);
         }
 
@@ -76,7 +78,7 @@ public class TreatmentService {
         // =========================================================
 
         @Transactional(readOnly = true)
-        public List<TreatmentResponse> findByToothNumber(
+        public List<PlanTreatmentResponse> findByToothNumber(
                         String patientId,
                         String toothNumber) {
                 requirePatient(patientId);
@@ -88,7 +90,7 @@ public class TreatmentService {
                                                 patientId,
                                                 normalizedToothNumber)
                                 .stream()
-                                .map(TreatmentResponse::fromEntity)
+                                .map(PlanTreatmentResponse::fromEntity)
                                 .toList();
         }
 
@@ -96,9 +98,9 @@ public class TreatmentService {
         // CREATE
         // =========================================================
 
-        public TreatmentResponse create(
+        public PlanTreatmentResponse create(
                         String patientId,
-                        CreateTreatmentRequest request) {
+                        CreatePlanTreatmentRequest request) {
                 Patient patient = requirePatient(patientId);
 
                 PatientTooth patientTooth = resolvePatientTooth(
@@ -133,7 +135,7 @@ public class TreatmentService {
                         progress = BigDecimal.ONE;
                 }
 
-                Treatment treatment = new Treatment(
+                TreatmentPlan treatment = new TreatmentPlan(
                                 UUID.randomUUID().toString(),
 
                                 patient,
@@ -155,17 +157,14 @@ public class TreatmentService {
                                 status,
 
                                 nullable(
-                                                request.notes()),
+                                                request.notes())
 
-                                startDate,
 
-                                request.nextAppointment(),
+                                );
 
-                                completedDate);
+                TreatmentPlan saved = treatmentRepository.save(treatment);
 
-                Treatment saved = treatmentRepository.save(treatment);
-
-                return TreatmentResponse.fromEntity(
+                return PlanTreatmentResponse.fromEntity(
                                 saved);
         }
 
@@ -173,13 +172,13 @@ public class TreatmentService {
         // UPDATE
         // =========================================================
 
-        public TreatmentResponse update(
+        public PlanTreatmentResponse update(
                         Patient patient,
                         String patientId,
                         String treatmentId,
                         UpdateTreatmentRequest request) {
 
-                Treatment existingTreatment = treatmentRepository
+                TreatmentPlan existingTreatment = treatmentRepository
                                 .findById(treatmentId)
                                 .orElseThrow(
                                                 () -> new IllegalArgumentException(
@@ -201,7 +200,7 @@ public class TreatmentService {
                                                         + patientId);
                 }
 
-                Treatment treatment = requireTreatment(
+                TreatmentPlan treatment = requireTreatment(
                                 patient.getId(),
                                 treatmentId);
 
@@ -225,10 +224,6 @@ public class TreatmentService {
 
                 validateProgress(progress);
 
-                OffsetDateTime completedDate = resolveCompletedDate(
-                                treatment,
-                                status,
-                                request.completedDate());
 
                 if (status == TreatmentStatus.COMPLETED) {
                         progress = BigDecimal.ONE;
@@ -254,15 +249,13 @@ public class TreatmentService {
                                 nullable(
                                                 request.notes()),
 
-                                request.startDate(),
+                                request.startDate()
 
-                                request.nextAppointment(),
+                                );
 
-                                completedDate);
+                TreatmentPlan saved = treatmentRepository.save(treatment);
 
-                Treatment saved = treatmentRepository.save(treatment);
-
-                return TreatmentResponse.fromEntity(
+                return PlanTreatmentResponse.fromEntity(
                                 saved);
         }
 
@@ -273,7 +266,7 @@ public class TreatmentService {
         public void delete(
                         String patientId,
                         String treatmentId) {
-                Treatment treatment = requireTreatment(
+                TreatmentPlan treatment = requireTreatment(
                                 patientId,
                                 treatmentId);
 
@@ -304,7 +297,7 @@ public class TreatmentService {
         // REQUIRE TREATMENT
         // =========================================================
 
-        private Treatment requireTreatment(
+        private TreatmentPlan requireTreatment(
                         String patientId,
                         String treatmentId) {
                 if (treatmentId == null ||
@@ -486,28 +479,7 @@ public class TreatmentService {
                 }
         }
 
-        // =========================================================
-        // COMPLETED DATE
-        // =========================================================
 
-        private OffsetDateTime resolveCompletedDate(
-                        Treatment treatment,
-                        TreatmentStatus newStatus,
-                        OffsetDateTime requestedDate) {
-                if (newStatus != TreatmentStatus.COMPLETED) {
-                        return null;
-                }
-
-                if (requestedDate != null) {
-                        return requestedDate;
-                }
-
-                if (treatment.getCompletedDate() != null) {
-                        return treatment.getCompletedDate();
-                }
-
-                return OffsetDateTime.now();
-        }
 
         // =========================================================
         // HELPERS
